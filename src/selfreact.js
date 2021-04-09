@@ -1,14 +1,13 @@
-
 const RENDER_TO_DOM = Symbol('renderToDom');
-const RE_RENDER = Symbol('rerender');
-const MERGE = Symbol('merge');
+const RERENDER = Symbol('rerender');
+const MERGE_STATE = Symbol('mergeState');
 
 class ElementWrapper {
-  constructor (tagName) {
-    this.root = document.createElement(tagName);
+  constructor (type) {
+    this.root = document.createElement(type);
   }
   setAttribute (name, value) {
-    if (name.match(/^on([\s\S]+$)/)) {
+    if (name.match(/^on([\s\S]+)/)) {
       const evt = RegExp.$1;
       this.root.addEventListener(evt.replace(/^[\s\S]/, c => c.toLowerCase()), value);
     } else {
@@ -28,8 +27,8 @@ class ElementWrapper {
 }
 
 class TextWrapper {
-  constructor (text) {
-    this.root = document.createTextNode(text);
+  constructor (content) {
+    this.root = document.createTextNode(content);
   }
   [RENDER_TO_DOM] (range) {
     range.deleteContents();
@@ -40,8 +39,8 @@ class TextWrapper {
 export class Component {
   constructor () {
     this.props = Object.create(null);
-    this._range = null;
     this.children = [];
+    this._range = null;
     this._timer = null;
   }
   setAttribute (name, value) {
@@ -54,7 +53,12 @@ export class Component {
     this._range = range;
     this.render()[RENDER_TO_DOM](range);
   }
-  [RE_RENDER] () {
+  [MERGE_STATE] (oldState, newState) {
+    Object.keys(newState).forEach(key => {
+      oldState[key] = newState[key];
+    })
+  }
+  [RERENDER] () {
     const oldRange = this._range;
     const range = document.createRange();
     range.setStart(oldRange.startContainer, oldRange.startOffset);
@@ -63,53 +67,46 @@ export class Component {
     oldRange.setStart(range.endContainer, range.endOffset);
     oldRange.deleteContents();
   }
-  [MERGE] (oldState, newState) {
-    Object.keys(newState).forEach(key => {
-      oldState[key] = newState[key];
-    })
-  }
   setState (newState) {
-    this[MERGE](this.state, newState);
+    this[MERGE_STATE](this.state, newState);
     if (this._timer) {
       clearTimeout(this._timer);
+      this._timer = null;
     }
     this._timer = setTimeout(() => {
-      this[RE_RENDER]();
+      this[RERENDER]();
+      this._timer = null;
     }, 20)
   }
 }
-
 export const createElement = (type, attrs, ...children) => {
-
   let e;
   if (typeof type === 'string') {
     e = new ElementWrapper(type);
   } else {
-    e = new type
+    e = new type;
   }
-
   if (Object.prototype.toString.call(attrs) === '[object Object]') {
     Object.keys(attrs).forEach(attrName => {
       e.setAttribute(attrName, attrs[attrName]);
     })
   }
-  const insetChildren = (children) => {
+  const insertChildren = (children) => {
     for (let child of children) {
-      if (typeof child === 'string' || typeof child === 'number') {
-        child = new TextWrapper(String(child));
+      if (typeof child === 'number' || typeof child === 'string') {
+        e.appendChild(new TextWrapper(String(child)));
+        continue;
+      }
+      if (Object.prototype.toString.call(child) === '[object Object]' && (child.root instanceof HTMLElement || child[RERENDER])) {
         e.appendChild(child);
         continue;
-      } 
+      }
       if (Array.isArray(child)) {
-        insetChildren(child);
-      } else {
-        if (Object.prototype.toString.call(child) === '[object Object]' && child.root instanceof HTMLElement) {
-          e.appendChild(child);
-        }
+        insertChildren(child)
       }
     }
   }
-  insetChildren(children);
+  insertChildren(children);
 
   return e;
 }
@@ -117,6 +114,6 @@ export const createElement = (type, attrs, ...children) => {
 export const render = (component, parentElement) => {
   const range = document.createRange();
   range.setStart(parentElement, 0);
-  range.setEnd(parentElement, parentElement.childNodes.length);
+  range.setStart(parentElement, parentElement.childNodes.length);
   component[RENDER_TO_DOM](range);
 }

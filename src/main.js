@@ -36,7 +36,6 @@ class MyChildComponent extends Component {
 }
 
 render(<MyComponent class='testclass' id='testid'>
-  <div>{{root:1}}</div>
   <div>test</div>
   <MyChildComponent>
     <div>child</div>

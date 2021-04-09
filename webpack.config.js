@@ -6,6 +6,8 @@ module.exports = {
   optimization: {
     minimize: false
   },
+  // devtool: 'source-map',
+  devtool: 'eval-source-map',
   module: {
     rules: [
       {
@@ -15,9 +17,12 @@ module.exports = {
           options: {
             presets: ['@babel/preset-env'],
             plugins: [
-              ['@babel/plugin-transform-react-jsx', {
-                pragma: 'createElement'
-              }]
+              [
+                '@babel/plugin-transform-react-jsx',
+                {
+                  pragma: 'createElement'
+                }
+              ]
             ]
           }
         }
